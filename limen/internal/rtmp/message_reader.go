@@ -3,6 +3,7 @@ package rtmp
 import (
 	"bufio"
 	"encoding/binary"
+	"fmt"
 	"io"
 )
 
@@ -15,10 +16,11 @@ type messageReader struct {
 	partialHeader        *Header
 	readingHeader        bool
 	currentPayloadBuffer []byte
+	chunkSize            int32
 }
 
 func NewMessageReader() *messageReader {
-	return &messageReader{readingHeader: true}
+	return &messageReader{readingHeader: true, chunkSize: -1}
 }
 
 func (r *messageReader) ReadMessage(buffer *bufio.Reader) (*Message, error) {
@@ -31,7 +33,7 @@ func (r *messageReader) ReadMessage(buffer *bufio.Reader) (*Message, error) {
 		}
 
 		r.lastHeader = header
-		r.currentPayloadBuffer = make([]byte, header.BodySize)
+		r.currentPayloadBuffer = make([]byte, chunkedBodySize(header, r.chunkSize))
 	} else if r.readingHeader {
 		header, err := r.readHeader(buffer)
 		if err != nil {
@@ -39,7 +41,7 @@ func (r *messageReader) ReadMessage(buffer *bufio.Reader) (*Message, error) {
 		}
 
 		r.lastHeader = header
-		r.currentPayloadBuffer = make([]byte, header.BodySize)
+		r.currentPayloadBuffer = make([]byte, chunkedBodySize(header, r.chunkSize))
 	}
 
 	r.readingHeader = false
@@ -47,8 +49,10 @@ func (r *messageReader) ReadMessage(buffer *bufio.Reader) (*Message, error) {
 	// Read the payload
 	_, err := io.ReadFull(buffer, r.currentPayloadBuffer)
 	if err != nil {
-		return nil, NotEnoughDataErr
+		return nil, ErrNotEnoughData
 	}
+
+	r.currentPayloadBuffer = unchunkPayload(r.lastHeader, r.currentPayloadBuffer, r.chunkSize)
 
 	// Payload has been read, switch to reading header
 	r.readingHeader = true
@@ -63,10 +67,14 @@ func (r *messageReader) ReadMessage(buffer *bufio.Reader) (*Message, error) {
 	}, nil
 }
 
+func (r *messageReader) SetChunkSize(size int32) {
+	r.chunkSize = size
+}
+
 func (r *messageReader) readHeader(buffer *bufio.Reader) (*Header, error) {
 	first_byte, err := buffer.ReadByte()
 	if err != nil {
-		return nil, NotEnoughDataErr
+		return nil, ErrNotEnoughData
 	}
 
 	headerType := (first_byte & 0b11000000) >> 6
@@ -82,7 +90,8 @@ func (r *messageReader) readHeader(buffer *bufio.Reader) (*Header, error) {
 	case 3:
 		return r.readHeaderType3(buffer, chunkStreamId)
 	default:
-		return nil, InvalidHeaderTypeErr
+		fmt.Printf("Reading header, type %d\n", headerType)
+		return nil, ErrInvalidHeaderType
 	}
 }
 
@@ -90,7 +99,7 @@ func (r *messageReader) readHeaderType0(buffer *bufio.Reader, chunkStreamId byte
 	var buff [11]byte
 	_, err := io.ReadFull(buffer, buff[:])
 	if err != nil {
-		return nil, NotEnoughDataErr
+		return nil, ErrNotEnoughData
 	}
 
 	header := &Header{
@@ -117,13 +126,13 @@ func (r *messageReader) readHeaderType0(buffer *bufio.Reader, chunkStreamId byte
 
 func (r *messageReader) readHeaderType1(buffer *bufio.Reader, chunkStreamId byte) (*Header, error) {
 	if r.lastHeader == nil {
-		return nil, OtherHeaderTypeExpectedErr
+		return nil, ErrOtherHeaderTypeExpected
 	}
 
 	var buff [7]byte
 	_, err := io.ReadFull(buffer, buff[:])
 	if err != nil {
-		return nil, NotEnoughDataErr
+		return nil, ErrNotEnoughData
 	}
 
 	timestampDelta := (binary.BigEndian.Uint32(buff[0:4]) >> 8)
@@ -153,13 +162,13 @@ func (r *messageReader) readHeaderType1(buffer *bufio.Reader, chunkStreamId byte
 
 func (r *messageReader) readHeaderType2(buffer *bufio.Reader, chunkStreamId byte) (*Header, error) {
 	if r.lastHeader == nil {
-		return nil, OtherHeaderTypeExpectedErr
+		return nil, ErrOtherHeaderTypeExpected
 	}
 
 	var buff [3]byte
 	_, err := io.ReadFull(buffer, buff[:])
 	if err != nil {
-		return nil, NotEnoughDataErr
+		return nil, ErrNotEnoughData
 	}
 
 	timestampDelta := (uint32(buff[0])<<16 | uint32(buff[1])<<8 | uint32(buff[2]))
@@ -189,7 +198,7 @@ func (r *messageReader) readHeaderType2(buffer *bufio.Reader, chunkStreamId byte
 
 func (r *messageReader) readHeaderType3(buffer *bufio.Reader, chunkStreamId byte) (*Header, error) {
 	if r.lastHeader == nil {
-		return nil, OtherHeaderTypeExpectedErr
+		return nil, ErrOtherHeaderTypeExpected
 	}
 
 	header := &Header{
@@ -240,8 +249,56 @@ func (r *messageReader) readExtendedTimestamp(buffer *bufio.Reader, header *Head
 	_, err := io.ReadFull(buffer, extendedTimestamp[:])
 	if err != nil {
 		r.partialHeader = header
-		return 0, NotEnoughDataErr
+		return 0, ErrNotEnoughData
 	}
 
 	return binary.BigEndian.Uint32(extendedTimestamp[:]), nil
+}
+
+func chunkedBodySize(header *Header, chunkSize int32) uint32 {
+	if chunkSize == -1 {
+		return header.BodySize
+	}
+
+	chunks := uint32(int32(header.BodySize-1) / chunkSize)
+
+	var extendedTimestamps uint32 = 0
+	if header.ExtendedTimestamp {
+		extendedTimestamps = 4 * chunks
+	}
+
+	return header.BodySize + chunks + extendedTimestamps
+}
+
+func unchunkPayload(header *Header, chunked []byte, chunkSize int32) []byte {
+	if chunkSize == -1 {
+		return chunked
+	}
+
+	payload := make([]byte, header.BodySize)
+
+	left := int(header.BodySize)
+	offset := 0
+	chunkedOffset := 0
+	for left > 0 {
+		size := int(chunkSize)
+
+		if size > left {
+			size = left
+		}
+
+		copy(payload[offset:offset+size], chunked[chunkedOffset:chunkedOffset+size])
+
+		offset += size
+
+		chunkedOffset += 1
+		if header.ExtendedTimestamp {
+			chunkedOffset += 4
+		}
+		chunkedOffset += size
+
+		left -= size
+	}
+
+	return payload
 }

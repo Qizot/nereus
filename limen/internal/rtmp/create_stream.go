@@ -22,21 +22,21 @@ func (c *CreateStreamCommand) Serialize() []byte {
 func (c *CreateStreamCommand) Deserialize(payload interface{}) error {
 	if p, ok := payload.([]interface{}); ok {
 		if len(p) != 3 {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if p[0] != "createStream" {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if txId, ok := p[1].(float64); ok {
 			c.TxId = txId
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 	} else {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	return nil

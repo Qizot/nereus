@@ -303,7 +303,7 @@ func TestReturnErrorOnNotEnoughData(t *testing.T) {
 	reader := NewMessageReader()
 	buffer := bufio.NewReader(bytes.NewReader(payload))
 	_, err := reader.ReadMessage(buffer)
-	assert.Equal(t, err, NotEnoughDataErr)
+	assert.Equal(t, err, ErrNotEnoughData)
 }
 
 func TestReturnErrorOnNotEnoughDataExtendedTimestamp(t *testing.T) {
@@ -326,5 +326,78 @@ func TestReturnErrorOnNotEnoughDataExtendedTimestamp(t *testing.T) {
 	reader := NewMessageReader()
 	buffer := bufio.NewReader(bytes.NewReader(payload))
 	_, err := reader.ReadMessage(buffer)
-	assert.Equal(t, err, NotEnoughDataErr)
+	assert.Equal(t, err, ErrNotEnoughData)
+}
+
+func TestReadMessageWithHeaderType0AndChunkSize(t *testing.T) {
+	payload := []byte{
+		// type
+		0x01,
+		// timestmap
+		0x0f, 0xff, 0xff,
+		// body size
+		0x0, 0x0, 0x03,
+		// type
+		0x2,
+		// stream id
+		0x00, 0x0, 0x0, 0x1,
+		// payload
+		0xff,
+		0xff,
+		0xc1,
+		0xff,
+	}
+
+	reader := NewMessageReader()
+	reader.SetChunkSize(2)
+
+	buffer := bufio.NewReader(bytes.NewReader(payload))
+	message, err := reader.ReadMessage(buffer)
+
+	assert.Nil(t, err)
+	assert.Equal(t, message.Header.ChunkStreamId, uint8(0x01))
+	assert.Equal(t, message.Header.Timestamp, uint32(0x000fffff))
+	assert.Equal(t, message.Header.BodySize, uint32(3))
+	assert.Equal(t, message.Header.Type, uint8(2))
+	assert.Equal(t, message.Header.StreamId, uint32(1))
+	assert.Equal(t, message.Payload, []byte{0xff, 0xff, 0xff})
+}
+
+func TestReadMessageWithHeaderType0AndChunkSizeAndExtendedTimestamp(t *testing.T) {
+	payload := []byte{
+		// type
+		0x01,
+		// timestmap
+		0xff, 0xff, 0xff,
+		// body size
+		0x0, 0x0, 0x03,
+		// type
+		0x2,
+		// stream id
+		0x00, 0x0, 0x0, 0x1,
+		// extended timestamp
+		0x0f, 0xff, 0xff, 0xff,
+		// payload
+		0xff,
+		0xff,
+		// marker
+		0xc1,
+		// extended timestamp
+		0x0f, 0xff, 0xff, 0xff,
+		0xff,
+	}
+
+	reader := NewMessageReader()
+	reader.SetChunkSize(2)
+
+	buffer := bufio.NewReader(bytes.NewReader(payload))
+	message, err := reader.ReadMessage(buffer)
+
+	assert.Nil(t, err)
+	assert.Equal(t, message.Header.ChunkStreamId, uint8(0x01))
+	assert.Equal(t, message.Header.Timestamp, uint32(0x0fffffff))
+	assert.Equal(t, message.Header.BodySize, uint32(3))
+	assert.Equal(t, message.Header.Type, uint8(2))
+	assert.Equal(t, message.Header.StreamId, uint32(1))
+	assert.Equal(t, message.Payload, []byte{0xff, 0xff, 0xff})
 }

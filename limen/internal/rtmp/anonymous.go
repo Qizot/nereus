@@ -1,39 +1,66 @@
 package rtmp
 
 import (
+	"bufio"
+	"bytes"
+
 	"limen/internal/rtmp/amf"
 )
 
 type AnonymousMessage struct {
-	Propries []interface{}
-	TxId     *float64
-	Name     string
+	Properties []interface{}
+	TxId       *float64
+	Name       string
+}
+
+func (c *AnonymousMessage) Type() uint8 {
+	return AmfCommandType
 }
 
 func (c *AnonymousMessage) Serialize() []byte {
 	payload := []interface{}{
 		c.Name,
-		c.TxId,
 	}
 
-	for _, p := range c.Propries {
+	if c.TxId != nil {
+		payload = append(payload, *(c.TxId))
+	}
+
+	for _, p := range c.Properties {
 		payload = append(payload, p)
 	}
 
-	bytes, _ := amf.NewAMF0Encoder().Encode(payload)
-	return bytes
+	buff := new(bytes.Buffer)
+	writer := bufio.NewWriter(buff)
+
+	for _, item := range payload {
+		bytes, err := amf.NewAMF0Encoder().Encode(item)
+		if err != nil {
+			panic("failed to encode AMF payload payload")
+		}
+
+		if _, err := writer.Write(bytes); err != nil {
+			panic("failed to writer to amf buffer")
+		}
+	}
+
+	if err := writer.Flush(); err != nil {
+		panic("failed to flush amf buffer")
+	}
+
+	return buff.Bytes()
 }
 
 func (c *AnonymousMessage) Deserialize(payload interface{}) error {
 	if p, ok := payload.([]interface{}); ok {
 		if len(p) < 3 {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if name, ok := p[0].(string); ok {
 			c.Name = name
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if txId, ok := p[1].(float64); ok {
@@ -41,16 +68,16 @@ func (c *AnonymousMessage) Deserialize(payload interface{}) error {
 		} else if p[1] == nil {
 			c.TxId = nil
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
-		c.Propries = make([]interface{}, 0)
+		c.Properties = make([]interface{}, 0)
 
 		for _, p := range p[2:] {
-			c.Propries = append(c.Propries, p)
+			c.Properties = append(c.Properties, p)
 		}
 	} else {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	return nil

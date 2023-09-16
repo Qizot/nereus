@@ -5,6 +5,10 @@ type UserControlMessage struct {
 	EventType uint16
 }
 
+func (c *UserControlMessage) Type() uint8 {
+	return UserControlType
+}
+
 func (c *UserControlMessage) Serialize() []byte {
 	payload := make([]byte, 2+len(c.Data))
 	payload[0] = byte(c.EventType >> 8)
@@ -17,7 +21,7 @@ func (c *UserControlMessage) Serialize() []byte {
 
 func (c *UserControlMessage) Deserialize(data []byte) error {
 	if len(data) < 2 {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	c.EventType = uint16(data[0])<<8 | uint16(data[1])

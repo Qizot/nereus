@@ -45,22 +45,28 @@ func (c *SetDataFrameMessage) Serialize() []byte {
 func (c *SetDataFrameMessage) Deserialize(payload interface{}) error {
 	if p, ok := payload.([]interface{}); ok {
 		if len(p) != 3 {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if p[0] != "@setDataFrame" {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if p[1] != "onMetaData" {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
-		if err := mapstructure.Decode(p[2], c); err != nil {
-			return InvalidMessageFormatErr
+		fields := map[string]interface{}{}
+
+		for _, pair := range p[2].([]*amf.KeyValuePair) {
+			fields[pair.Key] = pair.Value
+		}
+
+		if err := mapstructure.Decode(fields, c); err != nil {
+			return ErrInvalidMessageFormat
 		}
 	} else {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 	return nil
 }

@@ -24,26 +24,26 @@ func (c *ReleaseStreamCommand) Serialize() []byte {
 func (c *ReleaseStreamCommand) Deserialize(payload interface{}) error {
 	if p, ok := payload.([]interface{}); ok {
 		if len(p) != 4 {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if p[0] != "releaseStream" {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if txId, ok := p[1].(float64); ok {
 			c.TxId = txId
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if streamKey, ok := p[3].(string); ok {
 			c.StreamKey = streamKey
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 	} else {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	return nil

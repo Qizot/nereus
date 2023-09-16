@@ -8,9 +8,13 @@ type SetPeerBandwidthMessage struct {
 	Size uint32
 }
 
+func (c *SetPeerBandwidthMessage) Type() uint8 {
+	return SetPeerBandwidthType
+}
+
 func (c *SetPeerBandwidthMessage) Serialize() []byte {
 	payload := make([]byte, 5)
-	binary.LittleEndian.PutUint32(payload, c.Size)
+	binary.BigEndian.PutUint32(payload, c.Size)
 	payload[4] = 0x02
 
 	return payload
@@ -18,10 +22,10 @@ func (c *SetPeerBandwidthMessage) Serialize() []byte {
 
 func (c *SetPeerBandwidthMessage) Deserialize(data []byte) error {
 	if len(data) != 5 {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 	if data[5] != 0x02 {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	c.Size = binary.LittleEndian.Uint32(data[:4])

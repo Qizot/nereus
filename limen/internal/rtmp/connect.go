@@ -35,25 +35,25 @@ func (c *ConnectCommand) Serialize() []byte {
 func (c *ConnectCommand) Deserialize(payload interface{}) error {
 	if p, ok := payload.([]interface{}); ok {
 		if len(p) != 3 {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if p[0] != "connect" {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
-		if err := mapstructure.Decode(p[3], c); err != nil {
-			return InvalidMessageFormatErr
+		if err := mapstructure.Decode(p[2], c); err != nil {
+			return ErrInvalidMessageFormat
 		}
 
 		if txId, ok := p[1].(float64); ok {
 			c.TxId = txId
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 	} else {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	return nil

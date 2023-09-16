@@ -26,33 +26,33 @@ func (c *PublishCommand) Serialize() []byte {
 func (c *PublishCommand) Deserialize(payload interface{}) error {
 	if p, ok := payload.([]interface{}); ok {
 		if len(p) != 5 {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if p[0] != "publish" {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if txId, ok := p[1].(float64); ok {
 			c.TxId = txId
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if streamKey, ok := p[3].(string); ok {
 			c.StreamKey = streamKey
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 		if publishType, ok := p[4].(string); ok {
 			c.PublishType = publishType
 		} else {
-			return InvalidMessageFormatErr
+			return ErrInvalidMessageFormat
 		}
 
 	} else {
-		return InvalidMessageFormatErr
+		return ErrInvalidMessageFormat
 	}
 
 	return nil

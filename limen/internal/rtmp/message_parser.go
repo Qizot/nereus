@@ -7,17 +7,6 @@ import (
 	"limen/internal/rtmp/amf"
 )
 
-const (
-	SetChunkSizeType     = 0x1
-	UserControlType      = 0x4
-	WindowAckSizeType    = 0x5
-	SetPeerBandwidthType = 0x6
-	AudioType            = 0x8
-	VideoType            = 0x9
-	AmfDataType          = 0x12
-	AmfCommandType       = 0x14
-)
-
 func ParseMessage(message *Message) (interface{}, error) {
 	switch message.Header.Type {
 	case SetChunkSizeType:
@@ -72,14 +61,16 @@ func ParseMessage(message *Message) (interface{}, error) {
 			return nil, err
 		}
 
+		return msg, nil
+
 	case AmfDataType, AmfCommandType:
 		return parseAmfMessage(message.Payload)
 
 	default:
-		return nil, InvalidHeaderTypeErr
+		return nil, ErrInvalidHeaderType
 	}
 
-	return nil, InvalidHeaderTypeErr
+	return nil, ErrInvalidHeaderType
 }
 
 func parseAmfMessage(payload []byte) (interface{}, error) {
@@ -87,68 +78,64 @@ func parseAmfMessage(payload []byte) (interface{}, error) {
 	if data, err := amf.NewAMF0Decoder().Decode(buffer); err != nil {
 		return nil, err
 	} else {
-		if params, ok := data.([]interface{}); ok {
-			if len(params) < 1 {
-				return nil, InvalidMessageFormatErr
-			}
+		if len(data) < 1 {
+			return nil, ErrInvalidMessageFormat
+		}
 
-			if name, ok := params[0].(string); ok {
-				switch name {
-				case "connect":
-					msg := &ConnectCommand{}
+		if name, ok := data[0].(string); ok {
+			switch name {
+			case "connect":
+				msg := &ConnectCommand{}
 
-					if err := msg.Deserialize(params[1:]); err != nil {
-						return nil, err
-					}
-					return msg, nil
-
-				case "releaseStream":
-					msg := &ReleaseStreamCommand{}
-
-					if err := msg.Deserialize(params[1:]); err != nil {
-						return nil, err
-					}
-					return msg, nil
-
-				case "FCPublish":
-					msg := &FCPublishCommand{}
-
-					if err := msg.Deserialize(params[1:]); err != nil {
-						return nil, err
-					}
-					return msg, nil
-
-				case "createStream":
-					msg := &CreateStreamCommand{}
-
-					if err := msg.Deserialize(params[1:]); err != nil {
-						return nil, err
-					}
-					return msg, nil
-
-				case "publish":
-					msg := &PublishCommand{}
-
-					if err := msg.Deserialize(params[1:]); err != nil {
-						return nil, err
-					}
-					return msg, nil
-
-				case "@setDataFrame":
-					msg := &SetDataFrameMessage{}
-
-					if err := msg.Deserialize(params[1:]); err != nil {
-						return nil, err
-					}
-					return msg, nil
-				default:
-					return nil, InvalidMessageFormatErr
+				if err := msg.Deserialize(data); err != nil {
+					return nil, err
 				}
-			} else {
-				return nil, InvalidMessageFormatErr
+				return msg, nil
+
+			case "releaseStream":
+				msg := &ReleaseStreamCommand{}
+
+				if err := msg.Deserialize(data); err != nil {
+					return nil, err
+				}
+				return msg, nil
+
+			case "FCPublish":
+				msg := &FCPublishCommand{}
+
+				if err := msg.Deserialize(data); err != nil {
+					return nil, err
+				}
+				return msg, nil
+
+			case "createStream":
+				msg := &CreateStreamCommand{}
+
+				if err := msg.Deserialize(data); err != nil {
+					return nil, err
+				}
+				return msg, nil
+
+			case "publish":
+				msg := &PublishCommand{}
+
+				if err := msg.Deserialize(data); err != nil {
+					return nil, err
+				}
+				return msg, nil
+
+			case "@setDataFrame":
+				msg := &SetDataFrameMessage{}
+
+				if err := msg.Deserialize(data); err != nil {
+					return nil, err
+				}
+				return msg, nil
+			default:
+				return nil, ErrInvalidMessageFormat
 			}
 		} else {
-			return nil, InvalidMessageFormatErr
+			return nil, ErrInvalidMessageFormat
 		}
 	}
 }
