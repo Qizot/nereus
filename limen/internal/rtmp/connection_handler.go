@@ -59,10 +59,9 @@ func (h *handler) Run() error {
 		h.logger.Info("Closing connection")
 	}()
 
-	h.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-
 	h.logger.Info("Handling connection")
 	for {
+		h.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
 		if !h.handshakeFinished {
 			err := h.handleHandshake()

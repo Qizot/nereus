@@ -30,7 +30,9 @@ func main() {
 
 		err := handler.Run()
 		if err != nil {
-			fmt.Printf("Error running handler %+v\n", err)
+			logger.Info(fmt.Sprintf("Error running handler %+v\n", err))
+		} else {
+			logger.Info("Handler finished")
 		}
 		return err
 	}}
@@ -63,7 +65,11 @@ func runFlvReader(logger *slog.Logger, mediaStream chan interface{}) {
 			if packet != nil {
 				packet.Data = []byte{}
 				if packet.Type == 1 {
-					logger.Info(fmt.Sprintf("Got FLV packet %+v\n", packet))
+					// logger.Info(fmt.Sprintf("Got FLV packet %+v\n", packet))
+
+					if packet.CodecParams.(*flv.VideoCodecParams).KeyFrame {
+						logger.Info("Key frame")
+					}
 				}
 			}
 
