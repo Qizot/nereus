@@ -90,7 +90,6 @@ func (r *messageReader) readHeader(buffer *bufio.Reader) (*Header, error) {
 	case 3:
 		return r.readHeaderType3(buffer, chunkStreamId)
 	default:
-		fmt.Printf("Reading header, type %d\n", headerType)
 		return nil, ErrInvalidHeaderType
 	}
 }
