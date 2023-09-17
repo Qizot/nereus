@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"time"
 )
@@ -20,6 +21,7 @@ type HandlerCallabcks struct {
 }
 
 type handler struct {
+	logger              *slog.Logger
 	handshakeFinished   bool
 	connInitialized     bool
 	connAuthorized      bool
@@ -31,17 +33,22 @@ type handler struct {
 	messageReader       *messageReader
 	messageWriter       *messageWriter
 	currentTxId         uint32
+	mediaStreamWrapper  *mediaFlvWrapper
+	mediaChannel        chan interface{}
 }
 
-func NewHandler(conn net.Conn, callbacks *HandlerCallabcks) *handler {
+func NewHandler(conn net.Conn, logger *slog.Logger, callbacks *HandlerCallabcks, mediaChannel chan interface{}) *handler {
 	return &handler{
-		conn:          conn,
-		callbacks:     callbacks,
-		reader:        bufio.NewReader(conn),
-		writer:        bufio.NewWriter(conn),
-		messageReader: NewMessageReader(),
-		messageWriter: NewMessageWriter(),
-		currentTxId:   1,
+		conn:               conn,
+		logger:             logger,
+		callbacks:          callbacks,
+		reader:             bufio.NewReader(conn),
+		writer:             bufio.NewWriter(conn),
+		messageReader:      NewMessageReader(),
+		messageWriter:      NewMessageWriter(),
+		currentTxId:        1,
+		mediaStreamWrapper: NewMediaFlvWrapper(true, true),
+		mediaChannel:       mediaChannel,
 	}
 }
 
@@ -49,12 +56,12 @@ func (h *handler) Run() error {
 	defer h.conn.Close()
 
 	defer func() {
-		fmt.Println("Closing connection")
+		h.logger.Info("Closing connection")
 	}()
 
 	h.conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 
-	fmt.Println("handling connection")
+	h.logger.Info("Handling connection")
 	for {
 
 		if !h.handshakeFinished {
@@ -79,6 +86,7 @@ func (h *handler) Run() error {
 			}
 
 			if err != nil {
+				h.logger.Info("Failed initialization")
 				return err
 			}
 
@@ -94,6 +102,7 @@ func (h *handler) Run() error {
 			}
 
 			if err != nil {
+				h.logger.Info("Failed authorization")
 				return err
 			}
 
@@ -104,6 +113,7 @@ func (h *handler) Run() error {
 		if !h.setDataFrameHandled {
 			err := h.handleSetDataFrame()
 			if err != nil {
+				h.logger.Info("Failed to handle setDataFrame")
 				return err
 			}
 
@@ -117,6 +127,7 @@ func (h *handler) Run() error {
 		}
 
 		if err != nil {
+			h.logger.Info(fmt.Sprintf("Failed to handle message: %s", err.Error()))
 			return err
 		}
 	}
@@ -274,6 +285,9 @@ func (h *handler) handleAuthorization() error {
 			if err := h.serializeAndSendMessage(responseChunkStreamId, response); err != nil {
 				return err
 			}
+
+			h.mediaChannel <- MediaStreamInfo{StreamKey: publish.StreamKey}
+
 			return nil
 		} else {
 			return errors.New("unauthorized")
@@ -320,11 +334,13 @@ func (h *handler) handleMessage() error {
 		return err
 	}
 
-	switch message := msg.(type) {
+	switch msg.(type) {
 	case *VideoMessage:
-		fmt.Printf("Video packet -> size = %d\n", len(message.Data))
+		data := h.mediaStreamWrapper.WrapMessage(rawMsg)
+		h.mediaChannel <- MediaStreamData{Data: data}
 	case *AudioMessage:
-		fmt.Printf("Audio packet -> size = %d\n", len(message.Data))
+		data := h.mediaStreamWrapper.WrapMessage(rawMsg)
+		h.mediaChannel <- MediaStreamData{Data: data}
 	}
 
 	return nil

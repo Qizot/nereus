@@ -20,7 +20,6 @@ var (
 )
 
 type decoder struct {
-	discardBytes int
 	headerSeen   bool
 	audioPresent bool
 	videoPresent bool
@@ -37,17 +36,6 @@ func (d *decoder) Decode(buffer *bufio.Reader) (*Packet, error) {
 		}
 
 		d.headerSeen = true
-	}
-
-	// discard bytes from header if present
-	if d.discardBytes > 0 {
-		n, err := buffer.Discard(d.discardBytes)
-		if err != nil {
-			d.discardBytes -= n
-			return nil, ErrNotEnoughData
-		}
-
-		d.discardBytes = 0
 	}
 
 	return d.decodeBody(buffer)
