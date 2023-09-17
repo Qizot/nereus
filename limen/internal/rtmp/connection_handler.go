@@ -15,20 +15,22 @@ const (
 )
 
 type HandlerCallabcks struct {
-	OnAuthorize func(streamKey string) bool
+	OnAuthorize    func(streamKey string) bool
+	OnSetDataFrame func(message SetDataFrameMessage) bool
 }
 
 type handler struct {
-	handshakeFinished bool
-	connInitialized   bool
-	connAuthorized    bool
-	conn              net.Conn
-	callbacks         *HandlerCallabcks
-	reader            *bufio.Reader
-	writer            *bufio.Writer
-	messageReader     *messageReader
-	messageWriter     *messageWriter
-	currentTxId       uint32
+	handshakeFinished   bool
+	connInitialized     bool
+	connAuthorized      bool
+	setDataFrameHandled bool
+	conn                net.Conn
+	callbacks           *HandlerCallabcks
+	reader              *bufio.Reader
+	writer              *bufio.Writer
+	messageReader       *messageReader
+	messageWriter       *messageWriter
+	currentTxId         uint32
 }
 
 func NewHandler(conn net.Conn, callbacks *HandlerCallabcks) *handler {
@@ -96,6 +98,16 @@ func (h *handler) Run() error {
 			}
 
 			h.connAuthorized = true
+			continue
+		}
+
+		if !h.setDataFrameHandled {
+			err := h.handleSetDataFrame()
+			if err != nil {
+				return err
+			}
+
+			h.setDataFrameHandled = true
 			continue
 		}
 
@@ -264,10 +276,27 @@ func (h *handler) handleAuthorization() error {
 			}
 			return nil
 		} else {
-			return errors.New("Unauthorized")
+			return errors.New("unauthorized")
 		}
 	} else {
 		return errors.New("expected a Publish command")
+	}
+}
+
+func (h *handler) handleSetDataFrame() error {
+	setDataFrame, err := h.readAndParseMessage()
+	if err != nil {
+		return err
+	}
+
+	if setDataFrame, ok := setDataFrame.(*SetDataFrameMessage); ok {
+		if h.callbacks.OnSetDataFrame(*setDataFrame) {
+			return nil
+		} else {
+			return errors.New("setDataFrame has been rejected")
+		}
+	} else {
+		return errors.New("expected a SetDataFrame message")
 	}
 }
 

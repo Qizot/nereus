@@ -13,6 +13,9 @@ func main() {
 			OnAuthorize: func(streamKey string) bool {
 				return true
 			},
+			OnSetDataFrame: func(message rtmp.SetDataFrameMessage) bool {
+				return true
+			},
 		}
 
 		handler := rtmp.NewHandler(conn, callbacks)
