@@ -3,6 +3,7 @@ package rtmp
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -303,10 +304,10 @@ func TestReturnErrorOnNotEnoughData(t *testing.T) {
 	reader := NewMessageReader()
 	buffer := bufio.NewReader(bytes.NewReader(payload))
 	_, err := reader.ReadMessage(buffer)
-	assert.Equal(t, err, ErrNotEnoughData)
+	assert.Equal(t, err, io.EOF)
 }
 
-func TestReturnErrorOnNotEnoughDataExtendedTimestamp(t *testing.T) {
+func TestReturnEOFOnNotEnoughDataExtendedTimestamp(t *testing.T) {
 	payload := []byte{
 		// type
 		0x01,
@@ -326,7 +327,7 @@ func TestReturnErrorOnNotEnoughDataExtendedTimestamp(t *testing.T) {
 	reader := NewMessageReader()
 	buffer := bufio.NewReader(bytes.NewReader(payload))
 	_, err := reader.ReadMessage(buffer)
-	assert.Equal(t, err, ErrNotEnoughData)
+	assert.Equal(t, err, io.EOF)
 }
 
 func TestReadMessageWithHeaderType0AndChunkSize(t *testing.T) {

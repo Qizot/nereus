@@ -78,11 +78,11 @@ func TestEncodeAMF0Object(t *testing.T) {
 func TestEncodeAMF0ECMAArray(t *testing.T) {
 	encoder := NewAMF0Encoder()
 	encoded, err := encoder.Encode([]*KeyValuePair{
-		{"hello", "world"},
+		{Key: "hello", Value: "world"},
 	})
 
 	assert.Nil(t, err)
-	assert.True(t, bytes.Equal(encoded, []byte{
+	assert.Equal(t, []byte{
 		// type
 		0x08,
 		// size
@@ -95,14 +95,14 @@ func TestEncodeAMF0ECMAArray(t *testing.T) {
 		0x00, 0x05, 0x77, 0x6f, 0x72, 0x6c, 0x64,
 		// end marker
 		0x00, 0x00, 0x09,
-	}))
+	}, encoded)
 
 	encoded, err = encoder.Encode([]*KeyValuePair{})
 	assert.Nil(t, err)
 	assert.True(t, bytes.Equal(encoded, []byte{
 		// type
 		0x08,
-    0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
 		// end marker
 		0x00, 0x00, 0x09,
 	}))

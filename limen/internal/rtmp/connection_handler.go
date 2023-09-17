@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 )
@@ -99,8 +100,8 @@ func (h *handler) Run() error {
 		}
 
 		err := h.handleMessage()
-		if err == ErrNotEnoughData {
-			continue
+		if err == io.EOF {
+			return nil
 		}
 
 		if err != nil {

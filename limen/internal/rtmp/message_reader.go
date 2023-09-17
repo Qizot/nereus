@@ -3,7 +3,6 @@ package rtmp
 import (
 	"bufio"
 	"encoding/binary"
-	"fmt"
 	"io"
 )
 
@@ -49,7 +48,7 @@ func (r *messageReader) ReadMessage(buffer *bufio.Reader) (*Message, error) {
 	// Read the payload
 	_, err := io.ReadFull(buffer, r.currentPayloadBuffer)
 	if err != nil {
-		return nil, ErrNotEnoughData
+		return nil, io.EOF
 	}
 
 	r.currentPayloadBuffer = unchunkPayload(r.lastHeader, r.currentPayloadBuffer, r.chunkSize)
@@ -74,7 +73,7 @@ func (r *messageReader) SetChunkSize(size int32) {
 func (r *messageReader) readHeader(buffer *bufio.Reader) (*Header, error) {
 	first_byte, err := buffer.ReadByte()
 	if err != nil {
-		return nil, ErrNotEnoughData
+		return nil, io.EOF
 	}
 
 	headerType := (first_byte & 0b11000000) >> 6
@@ -98,7 +97,7 @@ func (r *messageReader) readHeaderType0(buffer *bufio.Reader, chunkStreamId byte
 	var buff [11]byte
 	_, err := io.ReadFull(buffer, buff[:])
 	if err != nil {
-		return nil, ErrNotEnoughData
+		return nil, io.EOF
 	}
 
 	header := &Header{
@@ -131,7 +130,7 @@ func (r *messageReader) readHeaderType1(buffer *bufio.Reader, chunkStreamId byte
 	var buff [7]byte
 	_, err := io.ReadFull(buffer, buff[:])
 	if err != nil {
-		return nil, ErrNotEnoughData
+		return nil, io.EOF
 	}
 
 	timestampDelta := (binary.BigEndian.Uint32(buff[0:4]) >> 8)
@@ -167,7 +166,7 @@ func (r *messageReader) readHeaderType2(buffer *bufio.Reader, chunkStreamId byte
 	var buff [3]byte
 	_, err := io.ReadFull(buffer, buff[:])
 	if err != nil {
-		return nil, ErrNotEnoughData
+		return nil, io.EOF
 	}
 
 	timestampDelta := (uint32(buff[0])<<16 | uint32(buff[1])<<8 | uint32(buff[2]))
@@ -248,7 +247,7 @@ func (r *messageReader) readExtendedTimestamp(buffer *bufio.Reader, header *Head
 	_, err := io.ReadFull(buffer, extendedTimestamp[:])
 	if err != nil {
 		r.partialHeader = header
-		return 0, ErrNotEnoughData
+		return 0, io.EOF
 	}
 
 	return binary.BigEndian.Uint32(extendedTimestamp[:]), nil

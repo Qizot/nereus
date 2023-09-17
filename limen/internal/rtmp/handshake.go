@@ -20,7 +20,7 @@ func (h *handshake) ReceiveC0C1(buffer *bufio.Reader) error {
 	var payload [1537]byte
 
 	if _, err := io.ReadFull(buffer, payload[:]); err != nil {
-		return ErrNotEnoughData
+		return io.EOF
 	}
 
 	if payload[0] != 0x03 {
@@ -46,11 +46,11 @@ func (h *handshake) ReceiveC2(buffer *bufio.Reader) error {
 	var c2 [1536]byte
 
 	if _, err := io.ReadFull(buffer, c2[:]); err != nil {
-		return ErrNotEnoughData
+		return io.EOF
 	}
 
 	if !bytes.Equal(c2[:], h.s1) {
-		return ErrInvalidHandshake
+		return io.EOF
 	}
 
 	return nil
